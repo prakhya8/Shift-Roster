@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shift Roster Generator</title>
+    <style>
+        /* Existing CSS styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+        }
+        h2, h3 {
+            color: #333;
+        }
+        .input-container {
+            width: 80%;
+            margin: 20px auto;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0px 0px 8px rgba(0, 0, 0, 0.1);
+            text-align: left;
+        }
+        input, select, button {
+            margin: 5px;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        table {
+            width: 90%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            background: #fff;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        th {
+            background: #007bff;
+            color: white;
+        }
+        .editable {
+            background: #ffeb99;
+            cursor: pointer;
+        }
+        .employee-schedule-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+        .employee-card {
+            background: #fff;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            width: 250px;
+        }
+        .employee-card h4 {
+            background: #007bff;
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+        }
+        .schedule-list {
+            list-style: none;
+            padding: 0;
+        }
+        /* Color coding for employee-wise schedule */
+        .shift-A {
+            background-color: #c8e6c9; /* Light green for Morning Shift */
+        }
+        .shift-B {
+            background-color: #ffcc80; /* Light orange for Evening Shift */
+        }
+        .shift-C {
+            background-color: #ffcdd2; /* Light red for Night Shift */
+        }
+        .shift-G {
+            background-color: #fff59d; /* Light yellow for General Shift */
+        }
+        .weekly-off {
+            background-color: #bbdefb; /* Light blue for Weekly Off */
+        }
+        .leave {
+            background-color: #e1bee7; /* Light purple for Leave */
+        }
+        .week-leave {
+            background-color: #d7ccc8; /* Light brown for Week Leave */
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+</head>
+<body>
+
+    <h2>Shift Roster of Converter Shop Operations SMS-2 BSP</h2>
+
+    <!-- Week Selection -->
+    <h3>Select Week for Roster Generation</h3>
+    <div class="input-container">
+        <label for="week-start-date">Start Date (Monday):</label>
+        <input type="date" id="week-start-date">
+        <button onclick="setWeekDates()">Set Week</button>
+    </div>
+
+    <!-- Employee Preferences -->
+    <h3>Choose Employee Preference Entry Method</h3>
+    <select id="preferenceMethod" onchange="togglePreferenceMethod()">
+        <option value="manual">Manual Entry</option>
+        <option value="upload">Upload via Excel</option>
+    </select>
+
+    <!-- Manual Entry Section (Visible by Default) -->
+    <div id="manualEntry">
+        <h3>Enter Employee Preferences</h3>
+        <div class="input-container" id="employeeInputs"></div>
+    </div>
+
+    <!-- Excel Upload Section (Hidden Initially) -->
+    <div id="uploadEntry" 
+        <h3>Upload Employee Preferences (Excel)</h3>
+        <input type="file" id="uploadExcel" accept=".xlsx">
+        <button onclick="handleFileUpload()">Upload</button>
+        <button onclick="downloadSampleExcel()">Download Sample Excel</button>
+    </div>
+
+    <button onclick="generateRoster()">Generate Roster</button>
+
+    <!-- Weekly Shift Roster -->
+    <h3>Weekly Shift Roster (Editable)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Morning Shift (A)</th>
+                <th>Evening Shift (B)</th>
+                <th>Night Shift (C)</th>
+                <th>General Shift (G)</th>
+            </tr>
+        </thead>
+        <tbody id="rosterTable"></tbody>
+    </table>
+    
+    <button onclick="updateEmployeeSchedule()">Update Employee Schedule</button>
+
+    <!-- Updated Roster -->
+    <h3>Updated Roster</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Morning Shift (A)</th>
+                <th>Evening Shift (B)</th>
+                <th>Night Shift (C)</th>
+                <th>General Shift (G)</th>
+            </tr>
+        </thead>
+        <tbody id="updatedRosterTable"></tbody>
+    </table>
+
+    <!-- Employee-wise Schedule -->
+    <button onclick="generateEmployeeSchedule()">Generate Employee-wise Schedule</button>
+    <h3>Employee-wise Schedule</h3>
+    <div class="employee-schedule-container" id="employeeScheduleContainer"></div>
+
+    <!-- Save as PDF and Excel -->
+    <button onclick="saveAsPDF()">Save as PDF</button>
+    <button onclick="saveAsExcel()">Save as Excel</button>
+
+    <script>
+        let employees = ["GK", "AM", "RB", "DG", "MS", "SS", "RBG", "KM", "AS", "VA", "VT", "PS", "NS", "DB", "VK", "BR", "AV", "SG", "VS", "VV", "SKD", "VSH", "JS"];
+        let employeeData = {};
+        let roster = [];
+        let weekDates = []; // Array to store the dates of the selected week
+
+        // Function to toggle between manual entry and file upload
+        function togglePreferenceMethod() {
+    let method = document.getElementById("preferenceMethod").value;
+    // No need to hide/show manualEntry and uploadEntry, as both are always visible
+}
+
+        // Function to handle file upload and update employee preferences
+function handleFileUpload() {
+    const fileInput = document.getElementById("uploadExcel");
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert("Please select an Excel file.");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: false }); // raw:false for formatted values
+
+            let updatedCount = 0;
+            
+            jsonData.forEach(row => {
+                // Get employee name
+                const empKey = Object.keys(row).find(k => 
+                    k.toLowerCase().includes("name") || 
+                    k.toLowerCase().includes("employee")
+                );
+                if (!empKey) return;
+                
+                const empName = row[empKey]?.toString().trim();
+                if (!empName) return;
+
+                // Find matching employee
+                const employee = employees.find(e => 
+                    e.toLowerCase() === empName.toLowerCase()
+                );
+                if (!employee) return;
+
+                // Process shift
+                const shiftKey = Object.keys(row).find(k => 
+                    k.toLowerCase().includes("shift") || 
+                    k.toLowerCase().includes("preference")
+                );
+                if (shiftKey) {
+                    const shiftMap = {
+                        "morning": "A", "a": "A",
+                        "evening": "B", "b": "B",
+                        "night": "C", "c": "C",
+                        "general": "G", "g": "G"
+                    };
+                    const shiftValue = row[shiftKey]?.toString().trim().toLowerCase();
+                    const shiftCode = shiftMap[shiftValue] || "A";
+                    document.getElementById(`shift-${employee}`).value = shiftCode;
+                }
+
+                // Process weekly off with improved date handling
+                const offKey = Object.keys(row).find(k => 
+                    k.toLowerCase().includes("weekly off") || 
+                    k.toLowerCase().includes("off")
+                );
+                if (offKey && row[offKey]) {
+                    const offDate = parseExcelDate(row[offKey]);
+                    if (offDate && !isNaN(offDate)) {
+                        const formattedDate = formatDateToInput(offDate);
+                        document.getElementById(`off-${employee}`).value = formattedDate;
+                    } else {
+                        console.warn(`Invalid weekly off date for ${employee}:`, row[offKey]);
+                    }
+                }
+
+                // Process leave dates with improved date handling
+                const leaveKey = Object.keys(row).find(k => 
+                    k.toLowerCase().includes("leave") && 
+                    !k.toLowerCase().includes("week")
+                );
+                if (leaveKey && row[leaveKey]) {
+                    const leaveDates = row[leaveKey].toString()
+                        .split(",")
+                        .map(d => {
+                            const date = parseExcelDate(d.trim());
+                            return date ? formatDateToDDMMYYYY(date) : d.trim();
+                        })
+                        .filter(d => d)
+                        .join(", ");
+                    document.getElementById(`leave-${employee}`).value = leaveDates;
+                }
+
+                // Process week leave
+                const weekLeaveKey = Object.keys(row).find(k => 
+                    k.toLowerCase().includes("week leave") || 
+                    k.toLowerCase().includes("full week")
+                );
+                if (weekLeaveKey) {
+                    const weekLeaveValue = row[weekLeaveKey]?.toString().toLowerCase();
+                    document.getElementById(`week-leave-${employee}`).checked = 
+                        ["yes", "true", "1"].includes(weekLeaveValue);
+                }
+
+                updatedCount++;
+            });
+
+            if (updatedCount > 0) {
+                alert(`Successfully updated preferences for ${updatedCount} employees!`);
+            } else {
+                alert("No matching employee data found in the Excel file.");
+            }
+        } catch (error) {
+            console.error("Error processing Excel file:", error);
+            alert("Error processing Excel file. Please check the format and try again.");
+        }
+    };
+    reader.onerror = () => alert("Error reading file");
+    reader.readAsArrayBuffer(file);
+}
+
+// Helper function to parse Excel dates (handles serial numbers and strings)
+function parseExcelDate(excelValue) {
+    // If already a valid Date object
+    if (excelValue instanceof Date && !isNaN(excelValue)) return excelValue;
+    
+    // If Excel serial number (days since 1900-01-01)
+    if (typeof excelValue === 'number') {
+        // Excel's 1900 date system has a leap year bug (treats 1900 as leap year)
+        const excelEpoch = new Date(1899, 11, 30); // Dec 31, 1899 is day 1 in Excel
+        return new Date(excelEpoch.getTime() + excelValue * 86400 * 1000);
+    }
+    
+    // If string date
+    if (typeof excelValue === 'string') {
+        // Try ISO format first (YYYY-MM-DD)
+        let date = new Date(excelValue);
+        if (!isNaN(date)) return date;
+        
+        // Try DD-MM-YYYY format
+        const parts = excelValue.split(/[-/]/);
+        if (parts.length === 3) {
+            // Check if day is first (DD-MM-YYYY)
+            if (parts[0].length === 2 && parseInt(parts[0]) > 0 && parseInt(parts[0]) <= 31) {
+                date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+            } 
+            // Check if month is first (MM-DD-YYYY)
+            else if (parts[1].length === 2 && parseInt(parts[1]) > 0 && parseInt(parts[1]) <= 31) {
+                date = new Date(`${parts[2]}-${parts[0]}-${parts[1]}`);
+            }
+            if (!isNaN(date)) return date;
+        }
+        
+        // Try removing time portion if exists
+        const datePart = excelValue.split(' ')[0];
+        date = new Date(datePart);
+        if (!isNaN(date)) return date;
+    }
+    
+    console.warn("Could not parse date:", excelValue);
+    return null;
+}
+
+// Format as YYYY-MM-DD (for HTML date inputs)
+function formatDateToInput(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// Format as DD-MM-YYYY (for display)
+function formatDateToDDMMYYYY(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+}
+
+// Helper function to format date for input field (YYYY-MM-DD)
+function formatDateToInput(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+        // Function to create employee input fields
+        function createEmployeeInputs() {
+            let container = document.getElementById("employeeInputs");
+            container.innerHTML = `<strong>Add Extra Employee:</strong> 
+                <input type="text" id="extra-employee" placeholder="Enter name">
+                <button onclick="addExtraEmployee()">Add</button><br><br>`;
+
+            employees.forEach((emp, index) => {
+                let div = document.createElement("div");
+                div.innerHTML = `
+                    <input type="text" id="name-${index}" value="${emp}">
+                    Shift: 
+                    <select id="shift-${emp}">
+                        <option value="A">Morning (A)</option>
+                        <option value="B">Evening (B)</option>
+                        <option value="C">Night (C)</option>
+                        <option value="G">General (G)</option>
+                    </select>
+                    Weekly Off: <input type="date" id="off-${emp}">
+                    Leave: <input type="text" id="leave-${emp}" placeholder="dd-mm-yyyy, dd-mm-yyyy">
+                    Week Leave: <input type="checkbox" id="week-leave-${emp}">
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Function to add extra employee
+        function addExtraEmployee() {
+            let newEmp = document.getElementById("extra-employee").value.trim();
+            if (newEmp && !employees.includes(newEmp)) {
+                employees.push(newEmp);
+                createEmployeeInputs();
+            }
+        }
+
+        // Function to set week dates based on the selected start date (Monday)
+        function setWeekDates() {
+            let startDate = document.getElementById("week-start-date").value;
+            if (!startDate) {
+                alert("Please select a start date (Monday).");
+                return;
+            }
+
+            let start = new Date(startDate);
+            weekDates = [];
+            for (let i = 0; i < 7; i++) {
+                let currentDate = new Date(start);
+                currentDate.setDate(start.getDate() + i);
+                weekDates.push(formatDateToDDMMYYYY(currentDate));
+            }
+
+            alert(`Week dates set: ${weekDates.join(", ")}`);
+        }
+
+        // Function to format date as DD-MM-YYYY
+        function formatDateToDDMMYYYY(date) {
+            let day = String(date.getDate()).padStart(2, '0');
+            let month = String(date.getMonth() + 1).padStart(2, '0');
+            let year = date.getFullYear();
+            return `${day}-${month}-${year}`;
+        }
+
+        // Function to check if an employee is available on a given date
+function isEmployeeAvailable(emp, date) {
+    let weeklyOff = document.getElementById(`off-${emp}`).value;
+    let leaveDates = document.getElementById(`leave-${emp}`).value.split(",").map(d => d.trim());
+    let weekLeave = document.getElementById(`week-leave-${emp}`).checked;
+
+    // If the employee is on week leave, they are not available
+    if (weekLeave) {
+        return false;
+    }
+
+    // Convert weeklyOff to DD-MM-YYYY format for comparison
+    if (weeklyOff) {
+        let weeklyOffDate = new Date(weeklyOff);
+        let formattedWeeklyOff = formatDateToDDMMYYYY(weeklyOffDate);
+        if (formattedWeeklyOff === date) {
+            return false; // Employee is on weekly off
+        }
+    }
+
+    // Check if the employee is on leave for the given date
+    if (leaveDates.includes(date)) {
+        return false; // Employee is on leave
+    }
+
+    return true; // Employee is available
+}
+
+        // Function to get available employees for a specific date and shift
+        function getAvailableEmployees(date, shift) {
+            let availableEmployees = employees.filter(emp => {
+                return document.getElementById(`shift-${emp}`).value === shift && isEmployeeAvailable(emp, date);
+            });
+
+            return availableEmployees.length > 0 ? availableEmployees.join(" / ") : "No employees available";
+        }
+
+        // Function to generate roster
+        function generateRoster() {
+            if (weekDates.length === 0) {
+                alert("Please set the week dates first.");
+                return;
+            }
+
+            let table = document.getElementById("rosterTable");
+            table.innerHTML = "";
+
+            weekDates.forEach(date => {
+                let row = `<tr>
+                    <td>${date}</td>
+                    <td class="editable" contenteditable="true">${getAvailableEmployees(date, "A")}</td>
+                    <td class="editable" contenteditable="true">${getAvailableEmployees(date, "B")}</td>
+                    <td class="editable" contenteditable="true">${getAvailableEmployees(date, "C")}</td>
+                    <td class="editable" contenteditable="true">${getAvailableEmployees(date, "G")}</td>
+                </tr>`;
+                table.innerHTML += row;
+            });
+        }
+
+       // Function to update employee schedule
+function updateEmployeeSchedule() {
+    let rosterTable = document.getElementById("rosterTable");
+    let updatedRosterTable = document.getElementById("updatedRosterTable");
+    updatedRosterTable.innerHTML = rosterTable.innerHTML;
+
+    let rows = updatedRosterTable.querySelectorAll("tr");
+    rows.forEach(row => {
+        let cells = row.querySelectorAll("td");
+        if (cells.length === 5) {
+            for (let i = 1; i <= 4; i++) {
+                let shiftCell = cells[i];
+                let employeesInShift = shiftCell.innerText.split(" / ").map(name => name.trim());
+
+                if (employeesInShift.length > 0) {
+                    // Assign "S" to the first employee
+                    employeesInShift[0] += " (S)";
+                }
+                if (employeesInShift.length > 1) {
+                    // Assign "T" to the second employee
+                    employeesInShift[1] += " (T)";
+                }
+
+                shiftCell.innerText = employeesInShift.join(" / ");
+            }
+        }
+    });
+}
+
+        // Function to generate employee-wise schedule with color coding
+        function generateEmployeeSchedule() {
+            let employeeSchedule = {};
+
+            employees.forEach(emp => employeeSchedule[emp] = []);
+
+            let rows = document.querySelectorAll("#updatedRosterTable tr");
+
+            rows.forEach(row => {
+                let cells = row.querySelectorAll("td");
+                if (cells.length === 5) {
+                    let date = cells[0].innerText;
+                    let shifts = [cells[1].innerText, cells[2].innerText, cells[3].innerText, cells[4].innerText];
+
+                    shifts.forEach((shift, index) => {
+                        let shiftLabel = index === 0 ? "Morning (A)" : index === 1 ? "Evening (B)" : index === 2 ? "Night (C)" : "General (G)";
+                        let names = shift.split(" / ").map(name => name.trim());
+
+                        names.forEach(name => {
+                            if (name && name !== "GAP") {
+                                if (!employeeSchedule[name]) {
+                                    employeeSchedule[name] = [];
+                                }
+                                employeeSchedule[name].push(`${date}: ${shiftLabel}`);
+                            }
+                        });
+                    });
+                }
+            });
+
+            employees.forEach(emp => {
+                let weeklyOff = document.getElementById(`off-${emp}`).value;
+                let leaveDates = document.getElementById(`leave-${emp}`).value.split(",").map(d => d.trim());
+                let weekLeave = document.getElementById(`week-leave-${emp}`).checked;
+
+                if (weeklyOff) {
+                    employeeSchedule[emp].push(`${weeklyOff}: Weekly Off`);
+                }
+
+                leaveDates.forEach(leaveDate => {
+                    if (leaveDate) {
+                        employeeSchedule[emp].push(`${leaveDate}: Leave`);
+                    }
+                });
+
+                if (weekLeave) {
+                    employeeSchedule[emp].push(`Week Leave: Entire Week`);
+                }
+            });
+
+            let container = document.getElementById("employeeScheduleContainer");
+            container.innerHTML = "";
+            Object.keys(employeeSchedule).forEach(emp => {
+                let div = document.createElement("div");
+                div.className = "employee-card";
+                div.innerHTML = `<h4>${emp}</h4><ul class="schedule-list">`;
+                employeeSchedule[emp].forEach(entry => {
+                    let className = "";
+                    if (entry.includes("Morning (A)")) {
+                        className = "shift-A";
+                    } else if (entry.includes("Evening (B)")) {
+                        className = "shift-B";
+                    } else if (entry.includes("Night (C)")) {
+                        className = "shift-C";
+                    } else if (entry.includes("General (G)")) {
+                        className = "shift-G";
+                    } else if (entry.includes("Weekly Off")) {
+                        className = "weekly-off";
+                    } else if (entry.includes("Leave")) {
+                        className = "leave";
+                    } else if (entry.includes("Week Leave")) {
+                        className = "week-leave";
+                    }
+                    div.innerHTML += `<li class="${className}">${entry}</li>`;
+                });
+                div.innerHTML += "</ul></div>";
+                container.appendChild(div);
+            });
+        }
+
+        // Function to save roster as PDF
+        function saveAsPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            let yPos = 10;
+            const pageHeight = doc.internal.pageSize.height;
+            const margin = 10;
+
+            const addNewPage = () => {
+                doc.addPage();
+                yPos = margin;
+            };
+
+            doc.setFontSize(10);
+            doc.text("Shift Roster", margin, yPos);
+            yPos += 10;
+
+            let rosterTable = document.getElementById("updatedRosterTable");
+            let rows = rosterTable.querySelectorAll("tr");
+
+            rows.forEach((row, rowIndex) => {
+                if (yPos > pageHeight - 20) {
+                    addNewPage();
+                }
+
+                let cells = row.querySelectorAll("td, th");
+                let xPos = margin;
+                cells.forEach((cell, cellIndex) => {
+                    doc.setFontSize(8);
+                    doc.text(cell.innerText, xPos, yPos);
+                    xPos += 40; // Adjust this value if necessary
+                });
+                yPos += 10;
+            });
+
+            yPos += 20;
+            doc.setFontSize(10);
+            doc.text("Employee-wise Schedule", margin, yPos);
+            yPos += 10;
+
+            let employeeScheduleContainer = document.getElementById("employeeScheduleContainer");
+            let employeeCards = employeeScheduleContainer.querySelectorAll(".employee-card");
+
+            employeeCards.forEach(card => {
+                if (yPos > pageHeight - 20) {
+                    addNewPage();
+                }
+
+                let employeeName = card.querySelector("h4").innerText;
+                let scheduleList = card.querySelectorAll("li");
+
+                doc.setFontSize(10);
+                doc.text(employeeName, margin, yPos);
+                yPos += 10;
+
+                scheduleList.forEach(item => {
+                    if (yPos > pageHeight - 20) {
+                        addNewPage();
+                    }
+
+                    doc.setFontSize(8);
+                    doc.text(item.innerText, margin + 5, yPos);
+                    yPos += 10;
+                });
+
+                yPos += 10;
+            });
+
+            doc.save("shift_roster.pdf");
+        }
+
+        // Function to save roster as Excel
+        function saveAsExcel() {
+            let table = document.getElementById("updatedRosterTable");
+            let rows = table.querySelectorAll("tr");
+            let data = [];
+
+            // Extract table data
+            rows.forEach(row => {
+                let cells = row.querySelectorAll("td, th");
+                let rowData = [];
+                cells.forEach(cell => {
+                    rowData.push(cell.innerText);
+                });
+                data.push(rowData);
+            });
+
+            // Create a worksheet
+            let ws = XLSX.utils.aoa_to_sheet(data);
+
+            // Create a workbook
+            let wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Roster");
+
+            // Save the workbook as an Excel file
+            XLSX.writeFile(wb, "shift_roster.xlsx");
+        }
+
+// Function to download sample Excel template
+function downloadSampleExcel() {
+    // Create sample data
+    let sampleData = [
+        ["Employee Name", "Preferred Shift", "Weekly Off", "Leave Dates", "Week Leave"],
+        ["GK", "A", "2023-11-20", "2023-11-22, 2023-11-23", "No"],
+        ["AM", "B", "", "2023-11-21", "Yes"]
+    ];
+
+    // Create a worksheet
+    let ws = XLSX.utils.aoa_to_sheet(sampleData);
+
+    // Create a workbook
+    let wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sample");
+
+    // Save the workbook as an Excel file
+    XLSX.writeFile(wb, "employee_preferences_sample.xlsx");
+}
+
+        // Call createEmployeeInputs() when the page loads
+        createEmployeeInputs();
+    </script>
+
+</body>
+</html>
